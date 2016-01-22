@@ -35,12 +35,14 @@ const char* role_friendly_name[] = { "invalid", "Ping out", "Pong back"};  // Th
 role_e role = role_pong_back;                                              // The role of the current running sketch
 
 // A single byte to keep track of the data being sent back and forth
-uint16_t counter = 1;
+uint16_t cycle = 1;
+uint16_t rate = 1 << 8;
+uint16_t nominal_rate = 1 << 8;
+int16_t  delta = 0;
 
 #define NUM_LEDS    2
 CRGB leds[NUM_LEDS];
 
-uint8_t gHue = 0; // rotating "base color" used by many of the patterns
 void setup(){
 
   Serial.begin(57600);
@@ -58,7 +60,7 @@ void setup(){
   //radio.setPALevel(RF24_PA_HIGH); 
   //radio.setDataRate(RF24_250KBPS);
   radio.setAutoAck(1);                    // Ensure autoACK is enabled
-  radio.setRetries(0,3);                  // Smallest time between retries, max no. of retries
+  radio.setRetries(0,0);                  // Smallest time between retries, max no. of retries
   radio.setPayloadSize(2);                // Here we are sending 1-byte payloads to test the call-response speed
   radio.openWritingPipe(pipes[0]);        // Both radios listen on the same pipes by default, and switch when writing
   radio.openReadingPipe(1,pipes[0]);
@@ -69,7 +71,7 @@ void setup(){
 void loop(void) {
   static unsigned long lastSent = millis();
   if (lastSent + 1000 < millis()) {
-    lastSent = millis();
+    lastSent += 1000;
     //radio.printDetails();                   // Dump the configuration of the rf unit for debugging
         
     //printf("0x%0.4x: Now sending; ",counter);
@@ -77,12 +79,8 @@ void loop(void) {
                                                             //Called when STANDBY-I mode is engaged (User is finished sending)
                                                             
     radio.stopListening();                                  // First, stop listening so we can talk.
-    if (!radio.write( &counter, 2 )){
-      //Serial.println(F("failed."));      
-    }else{
-      unsigned long tim = micros();
-      //printf("Got response in %lu microseconds\n\r",tim-time);
-      counter++;
+    if (!radio.write( &cycle, 2 )){
+      Serial.println(F("failed."));      
     }
     radio.startListening();
   }
@@ -90,11 +88,24 @@ void loop(void) {
   // Pong back role.  Receive each packet, dump it out, and send it back
   while( radio.available()){
     uint16_t gotWord;                                       // Dump the payloads until we've gotten everything
-    radio.read( &gotWord, 2 );
-    printf("0x%0.4x: Received\n", gotWord);
- }  
- EVERY_N_MILLISECONDS( 20 ) {
-   gHue++;
+    radio.read( &gotWord , 2 );
+
+    delta =  gotWord - cycle;
+
+    printf("At: 0x%0.4x, received: 0x%0.4x, rate: 0x%0.4x, delta: %d\n", cycle, gotWord, rate, delta);
+    
+ } 
+   static unsigned long lastTick = millis();
+  if (lastTick + 20 < millis()) {
+   lastTick += 20;
+   int16_t correction = sqrt(abs(delta /2) ) / 2;
+   if(delta < 0) {
+     correction = -correction;
+   }
+    
+   rate = nominal_rate + correction;
+   delta -= correction;
+   cycle += rate;
    rainbow();
    FastLED.show();
  } // slowly cycle the "base color" through the rainbow
@@ -106,6 +117,7 @@ void loop(void) {
 void rainbow() 
 {
   // FastLED's built-in rainbow generator
-  fill_rainbow( leds, NUM_LEDS, gHue, 7);
+  fill_rainbow( leds, NUM_LEDS, cycle >> 8, 7);
 }
+
 
