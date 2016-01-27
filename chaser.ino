@@ -36,12 +36,19 @@ role_e role = role_pong_back;                                              // Th
 
 // A single byte to keep track of the data being sent back and forth
 uint16_t cycle = 1;
-uint16_t rate = 1 << 8;
-uint16_t nominal_rate = 1 << 8;
+int16_t rate = 1 << 8;
+int16_t nominal_rate = 1 << 8;
 int16_t  delta = 0;
 
-#define NUM_LEDS    2
+#define NUM_LEDS    4
 CRGB leds[NUM_LEDS];
+
+
+void rainbow() 
+{
+  // FastLED's built-in rainbow generator
+  fill_rainbow( leds, NUM_LEDS, cycle >> 8, 7);
+}
 
 void setup(){
 
@@ -52,7 +59,7 @@ void setup(){
   Serial.println(F("*** PRESS 'T' to begin transmitting to the other node"));
   
   FastLED.addLeds<WS2812 , 7, GRB>(leds, NUM_LEDS).setCorrection( TypicalLEDStrip );
-  FastLED.setBrightness(100);
+  FastLED.setBrightness(50);
 
   // Setup and configure rf radio
 
@@ -84,8 +91,21 @@ void loop(void) {
     }
     radio.startListening();
   }
+  static unsigned long lastTick = millis();
+  if (lastTick + 20 < millis()) {
+   lastTick += 20;
+   int16_t correction = constrain((int16_t)delta/2, (int16_t)-255, (int16_t)255);//sqrt(abs(delta /2) ) / 2;
 
-  // Pong back role.  Receive each packet, dump it out, and send it back
+   rate = nominal_rate + correction;
+   
+   //printf("At: 0x%0.4x, rate: 0x%0.4x, delta: %d, correction: %d\n", cycle, rate, delta, correction);
+   
+   delta -= correction;
+   cycle += rate;
+   rainbow();
+   FastLED.show();
+ }
+ 
   while( radio.available()){
     uint16_t gotWord;                                       // Dump the payloads until we've gotten everything
     radio.read( &gotWord , 2 );
@@ -95,29 +115,8 @@ void loop(void) {
     printf("At: 0x%0.4x, received: 0x%0.4x, rate: 0x%0.4x, delta: %d\n", cycle, gotWord, rate, delta);
     
  } 
-   static unsigned long lastTick = millis();
-  if (lastTick + 20 < millis()) {
-   lastTick += 20;
-   int16_t correction = sqrt(abs(delta /2) ) / 2;
-   if(delta < 0) {
-     correction = -correction;
-   }
-    
-   rate = nominal_rate + correction;
-   delta -= correction;
-   cycle += rate;
-   rainbow();
-   FastLED.show();
- } // slowly cycle the "base color" through the rainbow
 
 }
 
-
-
-void rainbow() 
-{
-  // FastLED's built-in rainbow generator
-  fill_rainbow( leds, NUM_LEDS, cycle >> 8, 7);
-}
 
 
