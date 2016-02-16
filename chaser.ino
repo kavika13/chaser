@@ -35,20 +35,12 @@ const char* role_friendly_name[] = { "invalid", "Ping out", "Pong back"};  // Th
 role_e role = role_pong_back;                                              // The role of the current running sketch
 
 // A single byte to keep track of the data being sent back and forth
-uint16_t cycle = 1;
-int16_t rate = 1 << 8;
 int16_t nominal_rate = 1 << 8;
 int16_t  delta = 0;
+uint16_t offset = 0;
 
-#define NUM_LEDS    4
+#define NUM_LEDS    30
 CRGB leds[NUM_LEDS];
-
-
-void rainbow() 
-{
-  // FastLED's built-in rainbow generator
-  fill_rainbow( leds, NUM_LEDS, cycle >> 8, 7);
-}
 
 void setup(){
 
@@ -85,8 +77,9 @@ void loop(void) {
     unsigned long time = micros();                          // Take the time, and send it.  This will block until complete   
                                                             //Called when STANDBY-I mode is engaged (User is finished sending)
                                                             
-    radio.stopListening();                                  // First, stop listening so we can talk.
-    if (!radio.write( &cycle, 2 )){
+    radio.stopListening();
+    uint16_t toSend = cycle();
+    if (!radio.write( &toSend, 2 )){
       Serial.println(F("failed."));      
     }
     radio.startListening();
@@ -94,28 +87,38 @@ void loop(void) {
   static unsigned long lastTick = millis();
   if (lastTick + 20 < millis()) {
    lastTick += 20;
-   int16_t correction = constrain((int16_t)delta/2, (int16_t)-255, (int16_t)255);//sqrt(abs(delta /2) ) / 2;
+   int16_t correction = constrain((int16_t)delta/2, (int16_t)-255, (int16_t)255);
 
-   rate = nominal_rate + correction;
-   
    //printf("At: 0x%0.4x, rate: 0x%0.4x, delta: %d, correction: %d\n", cycle, rate, delta, correction);
-   
+   offset += correction;
    delta -= correction;
-   cycle += rate;
    rainbow();
    FastLED.show();
  }
  
-  while( radio.available()){
+  if( radio.available()){
     uint16_t gotWord;                                       // Dump the payloads until we've gotten everything
     radio.read( &gotWord , 2 );
 
-    delta =  gotWord - cycle;
+    delta =  gotWord - cycle();
 
-    printf("At: 0x%0.4x, received: 0x%0.4x, rate: 0x%0.4x, delta: %d\n", cycle, gotWord, rate, delta);
+    printf("At: 0x%0.4x, received: 0x%0.4x, delta: %d\n", cycle(), gotWord, delta);
     
  } 
+}
 
+
+
+void rainbow() 
+{
+  // FastLED's built-in rainbow generator
+  fill_rainbow( leds, NUM_LEDS, cycle() >> 8, 7);
+}
+
+uint16_t cycle() {
+  uint16_t cycle_size = 0xFFFF;
+  uint16_t loc = cycle_size & (micros() / 200);
+  return loc + offset;
 }
 
 
