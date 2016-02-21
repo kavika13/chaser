@@ -1,19 +1,3 @@
-/*
-  // March 2014 - TMRh20 - Updated along with High Speed RF24 Library fork
-  // Parts derived from examples by J. Coliz <maniacbug@ymail.com>
-*/
-/**
- * Example for efficient call-response using ack-payloads 
- *
- * This example continues to make use of all the normal functionality of the radios including
- * the auto-ack and auto-retry features, but allows ack-payloads to be written optionally as well.
- * This allows very fast call-response communication, with the responding radio never having to 
- * switch out of Primary Receiver mode to send back a payload, but having the option to if wanting
- * to initiate communication instead of respond to a commmunication.
- */
- 
-
-
 #include <SPI.h>
 #include <FastLED.h>
 
@@ -21,21 +5,11 @@
 #include "RF24.h"
 #include "printf.h"
 FASTLED_USING_NAMESPACE
-// Hardware configuration: Set up nRF24L01 radio on SPI bus plus pins 7 & 8 
 RF24 radio(9,10);
 
 // Topology
 const uint64_t pipes[2] = { 0xABCDABCD71LL };              // Radio pipe addresses for the 2 nodes to communicate.
 
-// Role management: Set up role.  This sketch uses the same software for all the nodes
-// in this system.  Doing so greatly simplifies testing.  
-
-typedef enum { role_ping_out = 1, role_pong_back } role_e;                 // The various roles supported by this sketch
-const char* role_friendly_name[] = { "invalid", "Ping out", "Pong back"};  // The debug-friendly names of those roles
-role_e role = role_pong_back;                                              // The role of the current running sketch
-
-// A single byte to keep track of the data being sent back and forth
-int16_t nominal_rate = 1 << 8;
 int16_t  delta = 0;
 uint16_t offset = 0;
 
@@ -46,18 +20,13 @@ void setup(){
 
   Serial.begin(57600);
   printf_begin();
-  Serial.print(F("\n\rRF24/examples/pingpair_ack/\n\rROLE: "));
-  Serial.println(role_friendly_name[role]);
-  Serial.println(F("*** PRESS 'T' to begin transmitting to the other node"));
   
   FastLED.addLeds<WS2812 , 7, GRB>(leds, NUM_LEDS).setCorrection( TypicalLEDStrip );
-  FastLED.setBrightness(50);
+  FastLED.setBrightness(150);
 
   // Setup and configure rf radio
 
   radio.begin();
-  //radio.setPALevel(RF24_PA_HIGH); 
-  //radio.setDataRate(RF24_250KBPS);
   radio.setAutoAck(1);                    // Ensure autoACK is enabled
   radio.setRetries(0,0);                  // Smallest time between retries, max no. of retries
   radio.setPayloadSize(2);                // Here we are sending 1-byte payloads to test the call-response speed
@@ -87,9 +56,9 @@ void loop(void) {
   static unsigned long lastTick = millis();
   if (lastTick + 20 < millis()) {
    lastTick += 20;
-   int16_t correction = constrain((int16_t)delta/2, (int16_t)-255, (int16_t)255);
+   int16_t correction = constrain((int16_t)delta/3, (int16_t)-255, (int16_t)255);
 
-   //printf("At: 0x%0.4x, rate: 0x%0.4x, delta: %d, correction: %d\n", cycle, rate, delta, correction);
+   printf("At: 0x%0.4x, delta: %d, offset: %d\n", cycle(), delta, offset);
    offset += correction;
    delta -= correction;
    rainbow();
@@ -111,14 +80,24 @@ void loop(void) {
 
 void rainbow() 
 {
+  int cycle_center = (cycle()  ) %  NUM_LEDS;
   // FastLED's built-in rainbow generator
-  fill_rainbow( leds, NUM_LEDS, cycle() >> 8, 7);
+  fill_rainbow( leds, NUM_LEDS, cycle(), 7);
+  for(int i = 0;i < NUM_LEDS;++i) {
+    int16_t delta = cycle_center - i;
+    delta = abs(delta);
+    leds[i] = leds[i].nscale8_video(((255 - 100) / delta) + (100 / delta));
+  }
 }
+
+
 
 uint16_t cycle() {
   uint16_t cycle_size = 0xFFFF;
-  uint16_t loc = cycle_size & (micros() / 200);
-  return loc + offset;
+  uint32_t mic = micros();
+  uint16_t loc = cycle_size & (mic >> 16);
+  uint16_t cyc = loc+ offset;
+  return cyc;
 }
 
 
