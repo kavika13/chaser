@@ -52,7 +52,13 @@ void loop(void) {
       Serial.println(F("failed."));      
     }
     radio.startListening();
+
+    static uint16_t lastAt = 0;
+    uint16_t at = cycle();
+    printf("cycle rate: %d/sec, (%dms between frames)\n", at - lastAt, 1000 / (at - lastAt));
+    lastAt = at;
   }
+  
   static unsigned long lastTick = millis();
   if (lastTick + 20 < millis()) {
    lastTick += 20;
@@ -80,9 +86,10 @@ void loop(void) {
 
 void rainbow() 
 {
-  int cycle_center = (cycle()  ) %  NUM_LEDS;
+  uint16_t corrected_cycle = cycle() >> 6;
+  int cycle_center = (corrected_cycle  ) %  NUM_LEDS;
   // FastLED's built-in rainbow generator
-  fill_rainbow( leds, NUM_LEDS, cycle(), 7);
+  fill_rainbow( leds, NUM_LEDS, corrected_cycle, 7);
   for(int i = 0;i < NUM_LEDS;++i) {
     int16_t delta = cycle_center - i;
     delta = abs(delta);
@@ -95,7 +102,7 @@ void rainbow()
 uint16_t cycle() {
   uint16_t cycle_size = 0xFFFF;
   uint32_t mic = micros();
-  uint16_t loc = cycle_size & (mic >> 16);
+  uint16_t loc = cycle_size & (mic >> 10);
   uint16_t cyc = loc+ offset;
   return cyc;
 }
