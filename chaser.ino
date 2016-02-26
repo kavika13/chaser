@@ -62,7 +62,7 @@ void loop(void) {
   static unsigned long lastTick = millis();
   if (lastTick + 20 < millis()) {
    lastTick += 20;
-   int16_t correction = constrain((int16_t)delta/3, (int16_t)-255, (int16_t)255);
+   int16_t correction = constrain((int16_t)delta/2, (int16_t)-5, (int16_t)5);
 
    printf("At: 0x%0.4x, delta: %d, offset: %d\n", cycle(), delta, offset);
    offset += correction;
