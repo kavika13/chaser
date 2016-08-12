@@ -1,19 +1,19 @@
 #include "sync.h"
 
-const uint64_t pipes[2] = { 0xABCDABCD71LL };              // Radio pipe addresses for the 2 nodes to communicate.
+const uint64_t v1_pipe = 0xABCDABCD71LL;
+const uint64_t v2_pipe = 873070516048LL;
 
 SyncedCycle::SyncedCycle() : radio(9,10), delta(0), offset(0) {
   radio.begin();
-  radio.setAutoAck(1);                    // Ensure autoACK is enabled
   radio.setRetries(0, 0);                 // Smallest time between retries, max no. of retries
   radio.setPayloadSize(2);                // Here we are sending 1-byte payloads to test the call-response speed
-  radio.openWritingPipe(pipes[0]);        // Both radios listen on the same pipes by default, and switch when writing
-  radio.openReadingPipe(1, pipes[0]);
+  radio.openReadingPipe(1, v2_pipe);
   radio.startListening();                 // Start listening
   radio.printDetails();                   // Dump the configuration of the rf unit for debugging
 }
 
 void SyncedCycle::tick() {
+  //printf("tick\n");
   static unsigned long lastSent = millis();
   static unsigned long frames = 0;
   frames++;
@@ -21,13 +21,24 @@ void SyncedCycle::tick() {
     lastSent += 1000;
     printf("frames: %d\n", frames);
     frames = 0;
-    //radio.printDetails();                   // Dump the configuration of the rf unit for debugging
-
-    radio.stopListening();
+    //radio.printDetails();
+    
     uint16_t toSend = synced_time();
+    
+    radio.stopListening();
+
+    radio.openWritingPipe(v1_pipe);
+    radio.setAutoAck(true);
     if (!radio.write( &toSend, 2 )) {
-      Serial.println(F("failed."));
+      Serial.println(F("failed v1."));
     }
+    
+    radio.openWritingPipe(v2_pipe);
+    radio.setAutoAck(false);
+    if (!radio.write( &toSend, 2 )) {
+      Serial.println(F("failed v2."));
+    }
+    
     radio.startListening();
   }
 
@@ -36,7 +47,7 @@ void SyncedCycle::tick() {
     lastTick += 20;
     int16_t correction = constrain((int16_t)delta / 2, (int16_t) - 5, (int16_t)5);
 
-    printf("At: 0x%0.4x, delta: %d, offset: %d\n", synced_time(), delta, offset);
+    //printf("At: 0x%0.4x, delta: %d, offset: %d\n", synced_time(), delta, offset);
     offset += correction;
     delta -= correction;
   }
@@ -46,7 +57,7 @@ void SyncedCycle::tick() {
     radio.read( &gotWord , 2 );
 
     delta =  gotWord - synced_time();
-    //printf("At: 0x%0.4x, received: 0x%0.4x, delta: %d\n", cycle(), gotWord, delta);
+    printf("At: 0x%0.4x, received: 0x%0.4x, delta: %d\n", synced_time(), gotWord, delta);
 
   }  
 }
