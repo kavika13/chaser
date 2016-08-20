@@ -19,7 +19,7 @@ void SyncedCycle::tick() {
   frames++;
   if (lastSent + 1000 < millis()) {
     lastSent += 1000;
-    printf("frames: %d\n", frames);
+    //printf("frames: %d\n", frames);
     frames = 0;
     //radio.printDetails();
     
@@ -30,7 +30,7 @@ void SyncedCycle::tick() {
     radio.openWritingPipe(v1_pipe);
     radio.setAutoAck(true);
     if (!radio.write( &toSend, 2 )) {
-      Serial.println(F("failed v1."));
+      //Serial.println(F("failed v1."));
     }
     
     radio.openWritingPipe(v2_pipe);
@@ -57,7 +57,7 @@ void SyncedCycle::tick() {
     radio.read( &gotWord , 2 );
 
     delta =  gotWord - synced_time();
-    printf("At: 0x%0.4x, received: 0x%0.4x, delta: %d\n", synced_time(), gotWord, delta);
+    //printf("At: 0x%0.4x, received: 0x%0.4x, delta: %d\n", synced_time(), gotWord, delta);
 
   }  
 }
