@@ -12,6 +12,7 @@ FASTLED_USING_NAMESPACE
 
 #define NUM_LEDS  30
 CRGB leds[NUM_LEDS];
+CRGB rainbowColorPalette[256];
 
 SyncedCycle *sync;
 void rainbow();
@@ -23,8 +24,20 @@ void setup() {
   FastLED.addLeds<WS2812 , 7, GRB>(leds, NUM_LEDS).setCorrection( TypicalLEDStrip );
   FastLED.setBrightness(50);
 
+  CHSV tempColorPalette[256];
+
+  fill_gradient (
+    tempColorPalette,
+    256,
+    CHSV(40, 255, 255),
+    CHSV(232, 255, 255));
+
+  for (int i = 0; i < 255; ++i) {
+    rainbowColorPalette[i] = CRGB(tempColorPalette[i]);
+    applyGamma_video(rainbowColorPalette[i], 2.8);
+  }
+
   sync = new SyncedCycle();
-  
 }
 
 void loop(void) {
@@ -106,10 +119,6 @@ void rainbow()
     cycle_center = NUM_LEDS - (cycle_center % (NUM_LEDS)) - 1;
   }
 
-  CRGB color;
-  fill_rainbow(&color, 1,  sync->cycle(256, 5), 12);
-  leds[cycle_center] = leds[cycle_center] + color;
+  leds[cycle_center] += rainbowColorPalette[sync->cycle(256, 5)];
 }
-
-
 
